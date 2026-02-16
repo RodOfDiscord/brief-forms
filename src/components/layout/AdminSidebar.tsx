@@ -26,7 +26,7 @@ export function AdminSidebar() {
             <div className="flex h-16 items-center border-b px-6">
                 <Link href="/dashboard" className="flex items-center gap-2">
                     <FileText className="h-6 w-6 text-primary" />
-                    <span className="text-lg font-bold">FormsBrief</span>
+                    <span className="text-lg font-bold">BriefForms</span>
                 </Link>
             </div>
 

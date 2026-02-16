@@ -17,7 +17,7 @@ export default async function HomePage() {
         <div className="flex items-center justify-between mb-16">
           <div className="flex items-center gap-2">
             <FileText className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold">FormsBrief</span>
+            <span className="text-xl font-bold">BriefForms</span>
           </div>
           {isAdmin ? (
             <LogoutButton />
@@ -38,7 +38,7 @@ export default async function HomePage() {
             <span className="text-primary">легко та швидко</span>
           </h1>
           <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
-            FormsBrief — це простий інструмент для створення онлайн-опитувань,
+            BriefForms — це простий інструмент для створення онлайн-опитувань,
             квізів та форм для збору даних. Підтримка умовної логіки,
             різних типів питань та анонімних відповідей.
           </p>

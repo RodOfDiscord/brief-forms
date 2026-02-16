@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAdminSupabaseClient } from '@/lib/supabase/admin';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { verifyAdminToken } from '@/lib/auth/jwt';
-import { v4 as uuidv4 } from 'uuid';
 
 interface RouteParams {
     params: Promise<{ formId: string }>;
@@ -18,32 +17,26 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         ? createAdminSupabaseClient()
         : createServerSupabaseClient();
 
-    // Try to find by slug first, then by ID
-    let formQuery = supabase
+    const { data: form, error: formError } = await supabase
         .from('forms')
         .select('*')
         .or(`id.eq.${formId},slug.eq.${formId}`)
         .single();
 
-    const { data: form, error: formError } = await formQuery;
-
     if (formError || !form) {
         return NextResponse.json({ error: 'Форму не знайдено' }, { status: 404 });
     }
 
-    // Non-admin can only see published forms
     if (!isAdmin && !form.is_published) {
         return NextResponse.json({ error: 'Форму не знайдено' }, { status: 404 });
     }
 
-    // Fetch questions
     const { data: questions } = await supabase
         .from('questions')
         .select('*')
         .eq('form_id', form.id)
         .order('order_index');
 
-    // Fetch options for all questions
     const questionIds = (questions || []).map((q) => q.id);
     let options: Array<{ id: string; question_id: string; label: string; order_index: number }> = [];
     if (questionIds.length > 0) {
@@ -55,16 +48,31 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
         options = opts || [];
     }
 
-    // Attach options to questions
     const questionsWithOptions = (questions || []).map((q) => ({
         ...q,
         options: options.filter((o) => o.question_id === q.id),
     }));
 
-    return NextResponse.json({
-        ...form,
-        questions: questionsWithOptions,
-    });
+    return NextResponse.json({ ...form, questions: questionsWithOptions });
+}
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+interface IncomingOption {
+    id: string;
+    label: string;
+    order_index: number;
+}
+
+interface IncomingQuestion {
+    id: string;
+    label: string;
+    type: string;
+    is_required: boolean;
+    order_index: number;
+    parent_question_id: string | null;
+    trigger_option_id: string | null;
+    options: IncomingOption[];
 }
 
 // PUT: Update a form (admin only)
@@ -77,11 +85,23 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     try {
         const body = await request.json();
-        const { title, description, slug, is_published, questions } = body;
+        const {
+            title,
+            description,
+            slug,
+            is_published,
+            questions: incomingQuestions = [],
+        }: {
+            title: string;
+            description?: string;
+            slug: string;
+            is_published?: boolean;
+            questions: IncomingQuestion[];
+        } = body;
 
         const supabase = createAdminSupabaseClient();
 
-        // Update form metadata
+        // ── 1. Update form metadata ──────────────────────────────────────────
         const { error: formError } = await supabase
             .from('forms')
             .update({
@@ -102,71 +122,226 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
             return NextResponse.json({ error: formError.message }, { status: 500 });
         }
 
-        // Delete existing questions (cascade deletes options too)
-        await supabase.from('questions').delete().eq('form_id', formId);
+        // ── 2. Load existing structure via two explicit queries ───────────────
+        // Deliberately avoid PostgREST embedded selects (e.g. `options(id)`)
+        // because they can silently return incorrect/empty data, which would
+        // make `existingOptionIds` an empty Set and prevent option deletion.
 
-        // Re-insert questions
-        if (questions && questions.length > 0) {
-            const idMap = new Map<string, string>();
+        const { data: existingQuestionsRaw } = await supabase
+            .from('questions')
+            .select('id')
+            .eq('form_id', formId);
 
-            for (const q of questions) {
-                const newId = uuidv4();
-                idMap.set(q.id, newId);
-                if (q.options) {
-                    for (const opt of q.options) {
-                        idMap.set(opt.id, uuidv4());
+        const existingQuestionIds = new Set(
+            (existingQuestionsRaw || []).map((q: { id: string }) => q.id)
+        );
+
+        // Load all current options for this form in one query
+        let existingOptions: Array<{ id: string; question_id: string }> = [];
+        if (existingQuestionIds.size > 0) {
+            const { data: existingOptionsRaw } = await supabase
+                .from('options')
+                .select('id, question_id')
+                .in('question_id', [...existingQuestionIds]);
+
+            existingOptions = (existingOptionsRaw || []) as Array<{
+                id: string;
+                question_id: string;
+            }>;
+        }
+
+        const existingOptionIds = new Set(existingOptions.map((o) => o.id));
+
+        // Build lookup: optionId → questionId (needed for answer sanitization)
+        const optionToQuestionMap = new Map(
+            existingOptions.map((o) => [o.id, o.question_id])
+        );
+
+        const incomingQuestionIds = new Set(incomingQuestions.map((q) => q.id));
+        const incomingOptionIds = new Set(
+            incomingQuestions.flatMap((q) => (q.options || []).map((o) => o.id))
+        );
+
+        // ── 3. Nullify all trigger_option_ids before any deletions ───────────
+        // Prevents FK violations when options referenced as triggers are about
+        // to be deleted. The DB schema has ON DELETE SET NULL, but doing it
+        // explicitly here keeps the transaction predictable.
+        if (existingQuestionIds.size > 0) {
+            await supabase
+                .from('questions')
+                .update({ trigger_option_id: null })
+                .in('id', [...existingQuestionIds]);
+        }
+
+        // ── 4. Delete removed questions ──────────────────────────────────────
+        // ON DELETE CASCADE removes their child options automatically.
+        // Answers linked to deleted questions are also cascade-deleted —
+        // correct behaviour: if admin removes a question, its data is gone.
+        const questionsToDelete = [...existingQuestionIds].filter(
+            (id) => !incomingQuestionIds.has(id)
+        );
+        if (questionsToDelete.length > 0) {
+            await supabase.from('questions').delete().in('id', questionsToDelete);
+        }
+
+        // ── 5. Sanitize answers + delete removed options of kept questions ────
+        // Options of deleted questions are already gone via cascade (step 4).
+        // Here we handle options explicitly removed from questions that still exist.
+        //
+        // We compute `optionsToDelete` from existingOptionIds vs incomingOptionIds.
+        // Because cascade may have already removed some of these IDs (for deleted
+        // questions), we only act on IDs that still physically exist in the DB —
+        // determined by optionToQuestionMap which was built before any deletions.
+        const optionsToDelete = [...existingOptionIds].filter(
+            (id) => !incomingOptionIds.has(id)
+        );
+
+        if (optionsToDelete.length > 0) {
+            // Determine which questions (that are still kept) own these options,
+            // so we can scope the answer sanitization query correctly.
+            const keptQuestionsWithRemovedOptions = [
+                ...new Set(
+                    optionsToDelete
+                        .map((id) => optionToQuestionMap.get(id))
+                        .filter((qId): qId is string =>
+                            qId !== undefined && !questionsToDelete.includes(qId)
+                        )
+                ),
+            ];
+
+            if (keptQuestionsWithRemovedOptions.length > 0) {
+                // Load answers for those questions that may reference deleted options
+                const { data: affectedAnswersRaw } = await supabase
+                    .from('answers')
+                    .select('id, value')
+                    .in('question_id', keptQuestionsWithRemovedOptions);
+
+                const affectedAnswers = (affectedAnswersRaw || []) as Array<{
+                    id: string;
+                    value: string;
+                }>;
+
+                if (affectedAnswers.length > 0) {
+                    const deletedSet = new Set(optionsToDelete);
+                    const answersToUpdate: Array<{ id: string; value: string }> = [];
+
+                    for (const ans of affectedAnswers) {
+                        // answers.value is comma-separated option IDs for choice questions
+                        const current = ans.value
+                            .split(',')
+                            .map((v) => v.trim())
+                            .filter(Boolean);
+                        const cleaned = current.filter((v) => !deletedSet.has(v));
+
+                        if (cleaned.length !== current.length) {
+                            answersToUpdate.push({
+                                id: ans.id,
+                                value: cleaned.join(','),
+                            });
+                        }
+                    }
+
+                    if (answersToUpdate.length > 0) {
+                        await supabase.from('answers').upsert(answersToUpdate);
                     }
                 }
             }
 
-            for (const q of questions) {
-                const questionId = idMap.get(q.id)!;
-                const parentId = q.parent_question_id
-                    ? idMap.get(q.parent_question_id) || null
-                    : null;
+            // Delete only options that still exist (cascade already removed the rest)
+            const stillExistingOptionsToDelete = optionsToDelete.filter(
+                (id) => !questionsToDelete.includes(optionToQuestionMap.get(id) ?? '')
+            );
+            if (stillExistingOptionsToDelete.length > 0) {
+                const { error: delOptError } = await supabase
+                    .from('options')
+                    .delete()
+                    .in('id', stillExistingOptionsToDelete);
 
-                await supabase.from('questions').insert({
-                    id: questionId,
+                if (delOptError) {
+                    return NextResponse.json({ error: delOptError.message }, { status: 500 });
+                }
+            }
+        }
+
+        if (incomingQuestions.length === 0) {
+            return NextResponse.json({ success: true });
+        }
+
+        // ── 6. Upsert questions — Pass 1: structure only, no FK fields ───────
+        // parent_question_id and trigger_option_id are set to null here to avoid
+        // FK violations when a new parent and its new child arrive in the same
+        // save (batch upsert does not guarantee row insertion order).
+        const { error: qError } = await supabase
+            .from('questions')
+            .upsert(
+                incomingQuestions.map((q) => ({
+                    id: q.id,
                     form_id: formId,
                     label: q.label,
                     type: q.type,
                     is_required: q.is_required || false,
                     order_index: q.order_index,
-                    parent_question_id: parentId,
+                    parent_question_id: null,
                     trigger_option_id: null,
-                });
+                }))
+            );
 
-                if (q.options && q.options.length > 0) {
-                    const optionsToInsert = q.options.map((opt: { id: string; label: string; order_index: number }) => ({
-                        id: idMap.get(opt.id)!,
-                        question_id: questionId,
-                        label: opt.label,
-                        order_index: opt.order_index,
-                    }));
+        if (qError) {
+            return NextResponse.json({ error: qError.message }, { status: 500 });
+        }
 
-                    await supabase.from('options').insert(optionsToInsert);
-                }
-            }
+        // ── 7. Upsert options ────────────────────────────────────────────────
+        // All questions now exist in the DB, so `question_id` FK is safe.
+        const optionsToUpsert = incomingQuestions.flatMap((q) =>
+            (q.options || []).map((opt) => ({
+                id: opt.id,
+                question_id: q.id,
+                label: opt.label,
+                order_index: opt.order_index,
+            }))
+        );
 
-            // Update trigger_option_ids
-            for (const q of questions) {
-                if (q.trigger_option_id) {
-                    const questionId = idMap.get(q.id)!;
-                    const triggerOptionId = idMap.get(q.trigger_option_id) || null;
+        if (optionsToUpsert.length > 0) {
+            const { error: oError } = await supabase
+                .from('options')
+                .upsert(optionsToUpsert);
 
-                    if (triggerOptionId) {
-                        await supabase
-                            .from('questions')
-                            .update({ trigger_option_id: triggerOptionId })
-                            .eq('id', questionId);
-                    }
-                }
+            if (oError) {
+                return NextResponse.json({ error: oError.message }, { status: 500 });
             }
         }
 
+        // ── 8. Pass 2: set parent_question_id ───────────────────────────────
+        // All questions are guaranteed to exist now, so the self-referential FK
+        // on questions.parent_question_id is safe to set.
+        const questionsWithParent = incomingQuestions.filter(
+            (q) => q.parent_question_id
+        );
+        for (const q of questionsWithParent) {
+            await supabase
+                .from('questions')
+                .update({ parent_question_id: q.parent_question_id })
+                .eq('id', q.id);
+        }
+
+        // ── 9. Pass 3: set trigger_option_id ────────────────────────────────
+        // All options are guaranteed to exist now, so the FK from
+        // questions.trigger_option_id to options.id is safe to set.
+        const questionsWithTrigger = incomingQuestions.filter(
+            (q) => q.trigger_option_id
+        );
+        for (const q of questionsWithTrigger) {
+            await supabase
+                .from('questions')
+                .update({ trigger_option_id: q.trigger_option_id })
+                .eq('id', q.id);
+        }
+
         return NextResponse.json({ success: true });
-    } catch {
-        return NextResponse.json({ error: 'Помилка сервера' }, { status: 500 });
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'Помилка сервера';
+        console.error('Error updating form:', err);
+        return NextResponse.json({ error: message }, { status: 500 });
     }
 }
 
@@ -180,10 +355,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     const supabase = createAdminSupabaseClient();
 
-    const { error } = await supabase
-        .from('forms')
-        .delete()
-        .eq('id', formId);
+    const { error } = await supabase.from('forms').delete().eq('id', formId);
 
     if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });

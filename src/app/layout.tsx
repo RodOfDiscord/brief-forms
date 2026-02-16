@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FormsBrief — Конструктор форм",
+  title: "BriefForms — Конструктор форм",
   description: "Створюйте онлайн-опитування, квізи та форми для збору даних",
 };
 

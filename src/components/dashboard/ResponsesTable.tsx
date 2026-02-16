@@ -17,7 +17,6 @@ interface ResponsesTableProps {
 }
 
 export function ResponsesTable({ responses, questions }: ResponsesTableProps) {
-    // Get root questions (without parent) sorted by order
     const rootQuestions = questions
         .filter((q) => !q.parent_question_id)
         .sort((a, b) => a.order_index - b.order_index);
@@ -30,16 +29,15 @@ export function ResponsesTable({ responses, questions }: ResponsesTableProps) {
 
         if (question.type === 'text') return rawValue;
 
-        // For choice questions, resolve option labels
+        // For choice questions, resolve option IDs to labels.
+        // Skip any IDs that no longer have a matching option (e.g. deleted options)
+        // so that stale UUIDs never appear in the table.
         const optionIds = rawValue.split(',').map((s) => s.trim()).filter(Boolean);
         const labels = optionIds
-            .map((optId) => {
-                const option = question.options.find((o) => o.id === optId);
-                return option?.label || optId;
-            })
-            .join(', ');
+            .map((optId) => question.options.find((o) => o.id === optId)?.label)
+            .filter((label): label is string => label !== undefined);
 
-        return labels;
+        return labels.join(', ');
     };
 
     if (responses.length === 0) {
@@ -77,11 +75,12 @@ export function ResponsesTable({ responses, questions }: ResponsesTableProps) {
                                 const answer = response.answers.find(
                                     (a) => a.question_id === q.id
                                 );
+                                const display = answer
+                                    ? getDisplayValue(q.id, answer.value)
+                                    : '';
                                 return (
                                     <TableCell key={q.id}>
-                                        {answer
-                                            ? getDisplayValue(q.id, answer.value)
-                                            : '—'}
+                                        {display || '—'}
                                     </TableCell>
                                 );
                             })}
