@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { ResponsesTable } from '@/components/dashboard/ResponsesTable';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, Download } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import type { Form } from '@/types/form';
 import type { FormResponse } from '@/types/response';

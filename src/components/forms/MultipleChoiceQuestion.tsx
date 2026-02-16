@@ -8,16 +8,19 @@ interface MultipleChoiceQuestionProps {
     question: Question;
     value: string; // comma-separated option IDs
     onChange: (value: string) => void;
+    disabled?: boolean;
 }
 
 export function MultipleChoiceQuestion({
     question,
     value,
     onChange,
+    disabled,
 }: MultipleChoiceQuestionProps) {
     const selectedIds = value ? value.split(',').filter(Boolean) : [];
 
     const handleToggle = (optionId: string, checked: boolean) => {
+        if (disabled) return;
         let newSelected: string[];
         if (checked) {
             newSelected = [...selectedIds, optionId];
@@ -37,15 +40,20 @@ export function MultipleChoiceQuestion({
                 {question.options.map((option) => (
                     <label
                         key={option.id}
-                        className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors hover:bg-accent"
+                        className={`flex items-center gap-3 rounded-lg border p-3 transition-colors ${disabled
+                            ? (selectedIds.includes(option.id) ? 'border-primary bg-primary/10 opacity-100' : 'opacity-60 bg-muted/50')
+                            : 'cursor-pointer hover:bg-accent'
+                            }`}
                     >
                         <Checkbox
                             checked={selectedIds.includes(option.id)}
                             onCheckedChange={(checked) =>
                                 handleToggle(option.id, checked as boolean)
                             }
+                            disabled={disabled}
+                            className="disabled:opacity-100 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
                         />
-                        <span className="text-sm">{option.label}</span>
+                        <span className="text-sm font-medium text-foreground">{option.label}</span>
                     </label>
                 ))}
             </div>

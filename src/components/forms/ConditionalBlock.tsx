@@ -8,6 +8,7 @@ interface ConditionalBlockProps {
     allQuestions: Question[];
     answers: Record<string, string>;
     onAnswer: (questionId: string, value: string) => void;
+    disabled?: boolean;
 }
 
 /**
@@ -19,6 +20,7 @@ export function ConditionalBlock({
     allQuestions,
     answers,
     onAnswer,
+    disabled,
 }: ConditionalBlockProps) {
     // Find child questions triggered by the current answer for this question
     const currentAnswer = answers[question.id] || '';
@@ -43,6 +45,7 @@ export function ConditionalBlock({
                             question={childQ}
                             value={answers[childQ.id] || ''}
                             onChange={(value) => onAnswer(childQ.id, value)}
+                            disabled={disabled}
                         />
                         {/* Recursively render conditionals for this child */}
                         <ConditionalBlock
@@ -50,6 +53,7 @@ export function ConditionalBlock({
                             allQuestions={allQuestions}
                             answers={answers}
                             onAnswer={onAnswer}
+                            disabled={disabled}
                         />
                     </div>
                 ))}

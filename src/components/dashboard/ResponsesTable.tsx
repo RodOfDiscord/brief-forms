@@ -1,5 +1,4 @@
-'use client';
-
+import { useRouter } from 'next/navigation';
 import {
     Table,
     TableBody,
@@ -17,6 +16,9 @@ interface ResponsesTableProps {
 }
 
 export function ResponsesTable({ responses, questions }: ResponsesTableProps) {
+    const router = useRouter();
+
+    // Sort logic and helper functions remain...
     const rootQuestions = questions
         .filter((q) => !q.parent_question_id)
         .sort((a, b) => a.order_index - b.order_index);
@@ -29,9 +31,6 @@ export function ResponsesTable({ responses, questions }: ResponsesTableProps) {
 
         if (question.type === 'text') return rawValue;
 
-        // For choice questions, resolve option IDs to labels.
-        // Skip any IDs that no longer have a matching option (e.g. deleted options)
-        // so that stale UUIDs never appear in the table.
         const optionIds = rawValue.split(',').map((s) => s.trim()).filter(Boolean);
         const labels = optionIds
             .map((optId) => question.options.find((o) => o.id === optId)?.label)
@@ -66,7 +65,11 @@ export function ResponsesTable({ responses, questions }: ResponsesTableProps) {
                 </TableHeader>
                 <TableBody>
                     {responses.map((response, index) => (
-                        <TableRow key={response.id}>
+                        <TableRow
+                            key={response.id}
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => router.push(`/dashboard/forms/${response.form_id}/responses/${response.id}`)}
+                        >
                             <TableCell className="font-medium">{index + 1}</TableCell>
                             <TableCell>
                                 {new Date(response.submitted_at).toLocaleString('uk-UA')}
