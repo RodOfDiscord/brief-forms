@@ -1,8 +1,15 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { Button } from "@/components/ui/button";
 import { FileText, ArrowRight, Shield } from "lucide-react";
+import { verifyAdminToken } from "@/lib/auth/jwt";
+import { LogoutButton } from "@/components/layout/LogoutButton";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("admin_token")?.value;
+  const isAdmin = token ? !!(await verifyAdminToken(token)) : false;
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/30">
       <div className="mx-auto max-w-4xl px-4 py-20">
@@ -12,12 +19,16 @@ export default function HomePage() {
             <FileText className="h-6 w-6 text-primary" />
             <span className="text-xl font-bold">FormsBrief</span>
           </div>
-          <Button variant="outline" asChild>
-            <Link href="/auth/login">
-              <Shield className="h-4 w-4 mr-2" />
-              Адмін
-            </Link>
-          </Button>
+          {isAdmin ? (
+            <LogoutButton />
+          ) : (
+            <Button variant="outline" asChild>
+              <Link href="/auth/login">
+                <Shield className="h-4 w-4 mr-2" />
+                Адмін
+              </Link>
+            </Button>
+          )}
         </div>
 
         {/* Hero */}
@@ -31,14 +42,16 @@ export default function HomePage() {
             квізів та форм для збору даних. Підтримка умовної логіки,
             різних типів питань та анонімних відповідей.
           </p>
-          <div className="flex justify-center gap-4">
-            <Button size="lg" asChild>
-              <Link href="/dashboard">
-                Перейти до дашборду
-                <ArrowRight className="h-4 w-4 ml-2" />
-              </Link>
-            </Button>
-          </div>
+          {isAdmin && (
+            <div className="flex justify-center gap-4">
+              <Button size="lg" asChild>
+                <Link href="/dashboard">
+                  Перейти до дашборду
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Link>
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Features */}
