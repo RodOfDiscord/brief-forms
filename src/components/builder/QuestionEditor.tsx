@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ interface QuestionEditorProps {
         parentQuestionId: string,
         triggerOptionId: string
     ) => void;
+    dragHandleProps?: any;
 }
 
 export function QuestionEditor({
@@ -38,6 +40,7 @@ export function QuestionEditor({
     onRemoveOption,
     onUpdateOption,
     onAddConditionalQuestion,
+    dragHandleProps,
 }: QuestionEditorProps) {
     const handleTypeChange = (type: QuestionType) => {
         onUpdate(question.id, {
@@ -50,7 +53,10 @@ export function QuestionEditor({
     return (
         <Card className={isConditional ? 'border-l-4 border-l-primary/30' : ''}>
             <CardHeader className="flex flex-row items-center gap-2 space-y-0 pb-3">
-                <GripVertical className="h-5 w-5 text-muted-foreground cursor-grab" />
+                <GripVertical
+                    className="h-5 w-5 text-muted-foreground cursor-grab active:cursor-grabbing"
+                    {...dragHandleProps}
+                />
                 <span className="text-sm font-medium text-muted-foreground">
                     {isConditional ? '↳' : ''} Питання {index + 1}
                 </span>
@@ -69,12 +75,14 @@ export function QuestionEditor({
                 {/* Question label */}
                 <div className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground">Текст питання</Label>
-                    <Input
+                    <Textarea
                         value={question.label}
                         onChange={(e) =>
                             onUpdate(question.id, { label: e.target.value })
                         }
                         placeholder="Введіть текст питання..."
+                        rows={2}
+                        className="resize-y min-h-[60px]"
                     />
                 </div>
 

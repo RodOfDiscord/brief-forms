@@ -1,6 +1,6 @@
 'use client';
 
-import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import type { Question } from '@/types/form';
 
@@ -18,13 +18,14 @@ export function TextQuestion({ question, value, onChange, disabled }: TextQuesti
                 {question.label}
                 {question.is_required && <span className="text-destructive ml-1">*</span>}
             </Label>
-            <Input
+            <Textarea
                 id={question.id}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder="Введіть вашу відповідь..."
-                className="w-full disabled:opacity-100 disabled:cursor-text disabled:text-foreground"
+                className="w-full min-h-[100px] resize-y disabled:opacity-100 disabled:cursor-text disabled:text-foreground"
                 disabled={disabled}
+                rows={3}
             />
         </div>
     );
