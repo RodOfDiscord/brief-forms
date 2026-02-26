@@ -2,10 +2,10 @@ import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { createAdminSupabaseClient } from '@/lib/supabase/admin';
 import { ReadOnlyFormRenderer } from '@/components/forms/ReadOnlyFormRenderer';
-import type { Form } from '@/types/form';
+import type { Form, Option } from '@/types/form';
 
 interface PageProps {
     params: Promise<{
@@ -35,7 +35,7 @@ export default async function ResponseDetailPage({ params }: PageProps) {
 
     const questionIds = (questions || []).map((q) => q.id);
 
-    let options: any[] = [];
+    let options: Option[] = [];
     if (questionIds.length > 0) {
         const { data: opts } = await supabase
             .from('options')

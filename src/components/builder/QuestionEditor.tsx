@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -25,7 +26,7 @@ interface QuestionEditorProps {
         parentQuestionId: string,
         triggerOptionId: string
     ) => void;
-    dragHandleProps?: any;
+    dragHandleProps?: React.HTMLAttributes<SVGSVGElement>;
 }
 
 export function QuestionEditor({

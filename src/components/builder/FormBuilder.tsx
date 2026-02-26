@@ -20,6 +20,7 @@ import {
     PointerSensor,
     useSensor,
     useSensors,
+    DragStartEvent,
     DragEndEvent,
 } from '@dnd-kit/core';
 import {
@@ -64,7 +65,7 @@ export function FormBuilder({ existingForm }: FormBuilderProps) {
         })
     );
 
-    const handleDragStart = (event: any) => {
+    const handleDragStart = (_event: DragStartEvent) => {
         // No-op, kept structure for potential drag overlays later
     };
 
