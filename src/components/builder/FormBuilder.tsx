@@ -11,7 +11,7 @@ import { Plus, Save, Loader2 } from 'lucide-react';
 import { QuestionEditor } from './QuestionEditor';
 import { SortableQuestion } from './SortableQuestion';
 import { useFormBuilder } from '@/hooks/useFormBuilder';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import type { Form } from '@/types/form';
 import {
     DndContext,
@@ -23,7 +23,6 @@ import {
     DragEndEvent,
 } from '@dnd-kit/core';
 import {
-    arrayMove,
     SortableContext,
     sortableKeyboardCoordinates,
     verticalListSortingStrategy,
@@ -58,8 +57,6 @@ export function FormBuilder({ existingForm }: FormBuilderProps) {
         reset,
     } = useFormBuilder(existingForm?.id);
 
-    const [activeId, setActiveId] = useState<string | null>(null);
-
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
@@ -68,17 +65,13 @@ export function FormBuilder({ existingForm }: FormBuilderProps) {
     );
 
     const handleDragStart = (event: any) => {
-        setActiveId(event.active.id);
+        // No-op, kept structure for potential drag overlays later
     };
 
     const handleDragEnd = (event: DragEndEvent) => {
         const { active, over } = event;
-        setActiveId(null);
 
         if (over && active.id !== over.id) {
-            const oldIndex = rootQuestions.findIndex((q) => q.id === active.id);
-            const newIndex = rootQuestions.findIndex((q) => q.id === over.id);
-
             // We need to map these root indices back to indices in the full questions array
             const fullOldIndex = questions.findIndex((q) => q.id === active.id);
             const fullNewIndex = questions.findIndex((q) => q.id === over.id);
