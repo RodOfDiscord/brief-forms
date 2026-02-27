@@ -6,7 +6,7 @@ export const config = {
 };
 
 export async function middleware(request: NextRequest) {
-    const { pathname } = request.nextUrl;
+    const { pathname, search } = request.nextUrl;
     const token = request.cookies.get('admin_token')?.value;
 
     // Redirect authenticated admins away from login page
@@ -23,15 +23,18 @@ export async function middleware(request: NextRequest) {
     // Protect dashboard routes
     if (pathname.startsWith('/dashboard')) {
         if (!token) {
-            return NextResponse.redirect(new URL('/auth/login', request.url));
+            const loginUrl = new URL('/auth/login', request.url);
+            // Append current path and query string as callbackUrl
+            loginUrl.searchParams.set('callbackUrl', pathname + search);
+            return NextResponse.redirect(loginUrl);
         }
 
         const payload = await verifyAdminToken(token);
         if (!payload) {
             // Clear invalid token
-            const response = NextResponse.redirect(
-                new URL('/auth/login', request.url)
-            );
+            const loginUrl = new URL('/auth/login', request.url);
+            loginUrl.searchParams.set('callbackUrl', pathname + search);
+            const response = NextResponse.redirect(loginUrl);
             response.cookies.set('admin_token', '', { maxAge: 0, path: '/' });
             return response;
         }
