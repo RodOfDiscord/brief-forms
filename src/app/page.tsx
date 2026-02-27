@@ -38,9 +38,7 @@ export default async function HomePage() {
             <span className="text-primary">легко та швидко</span>
           </h1>
           <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
-            BriefForms — це простий інструмент для створення онлайн-опитувань,
-            квізів та форм для збору даних. Підтримка умовної логіки,
-            різних типів питань та анонімних відповідей.
+            BriefForms — це інструмент для створення форм для збору даних.
           </p>
           {isAdmin && (
             <div className="flex justify-center gap-4">
