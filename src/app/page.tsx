@@ -17,7 +17,7 @@ export default async function HomePage() {
         <div className="flex items-center justify-between mb-16">
           <div className="flex items-center gap-2">
             <FileText className="h-6 w-6 text-primary" />
-            <span className="text-xl font-bold">BriefForms</span>
+            <span className="text-xl font-bold">Brief Forms</span>
           </div>
           {isAdmin ? (
             <LogoutButton />
@@ -38,7 +38,7 @@ export default async function HomePage() {
             <span className="text-primary">легко та швидко</span>
           </h1>
           <p className="mx-auto max-w-2xl text-lg text-muted-foreground">
-            BriefForms — це інструмент для створення форм для збору даних.
+            Brief Forms — це інструмент для створення форм для збору даних.
           </p>
           {isAdmin && (
             <div className="flex justify-center gap-4">
@@ -82,6 +82,15 @@ export default async function HomePage() {
             <p className="text-sm text-muted-foreground">
               JWT-автентифікація для адміністраторів
             </p>
+          </div>
+        </div>
+
+        {/* Author */}
+        <div className="mt-32 text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border bg-card/50 text-sm text-muted-foreground backdrop-blur-sm">
+            <span>Розроблено</span>
+            <span className="h-1 w-1 rounded-full bg-primary" />
+            <span className="font-semibold text-foreground">Паламарчуком Іваном з групи ІПЗ-22-2</span>
           </div>
         </div>
       </div>
